@@ -46,8 +46,8 @@ def simulation(startAnts, worldSize, perBlocked, perFood, printActions=False):
         worldCopy = {}
         for row in xrange(world.getWorldHeight()):
             for col in xrange(world.getWorldWidth()):
-
-                if world.getTile(row, col).isAntHome() and iters%10 == 0000:
+                ## spawn a new ant every 10th turn
+                if world.getTile(row, col).isAntHome() and iters%10 == 0:
                     world.getTile(row, col).addAnt(Ant(printActions))
                 
                 if world.getTile(row, col).getAnts() != []:
@@ -318,10 +318,10 @@ class Ant(object):
         """
         Ants are initialized with a 20x20 internal map. All tiles (except the
         starting tile) on the internal map are initially set to -100 which
-        represents an unknown tile
+        represents unexplored tiles. 
 
         The starting position of the ant is assumed to be (row, col)
-        (9,9), the center of the internal map
+        (9,9), the center of the internal map.
 
         Ants are initialized with zero food.
 
@@ -356,8 +356,7 @@ class Ant(object):
         self.nReceives = 0
         self.printActions = inputPrintActions
         
-        
-        ## create a 2-dimensional array to represent the world
+        ## create a 2-dimensional grid to represent the world
         ## for the ant
         self.internalMap = Grid(self.gridLen, self.gridLen, -100) 
 
@@ -388,18 +387,6 @@ class Ant(object):
         assert self.hasFood == True
         self.hasFood = False
 
-    def getFoodKnown(self):
-        return self.foodKnown
-
-    def setFoodKnown(self, foodKnown):
-        self.foodKnown = foodKnown
-    
-    def getNewFoodFound(self):
-        return self.newFoodFound
-
-    def setNewFoodFound(self, newFoodFound):
-        self.newFoodFound = newFoodFound
-
     def setAntReceiveMap(self, mapFromOtherAnt):
         self.receiveMap = mapFromOtherAnt
 
@@ -411,14 +398,12 @@ class Ant(object):
 
     def checkMap(self):
         """
-        iterates through the internal map to determine if there
-        is a known location of food. Sets the foodKnown field.
-        Stores and sorts the locations of food tiles and unexplored tiles
-        for use with A*
+        iterates through known food locations and know unexplored locations 
+        to find the nearest tile of the respective type(food/unexplored).
+        Stores the nearest location for use with A*.
         """
         self.foodLoc = (float("inf"),0)
         self.unexploredLoc = (float("inf"),0)
-        self.setFoodKnown(False)
         for (row, col) in self.foodLocSet:
             ## A* hueristic: for each food location, calculate the distance form
             ## the current location 
@@ -433,6 +418,16 @@ class Ant(object):
             unexploredDistance = math.sqrt((self.row - row)**2 + (self.col - col)**2)
             if unexploredDistance < self.unexploredLoc[0]:
                  self.unexploredLoc = (unexploredDistance,(row,col))
+
+    def finalCheckMap(self):
+        """
+        iterates through the internal map to determine if there
+        are any unexplored locations
+        """
+        for row in xrange(self.gridLen):
+            for col in xrange(self.gridLen):
+                if self.internalMap.getAt(row, col) == -101:
+                    self.addUnexploredLocs(row,col)
                 
 
     def updateMapPos(self, action):
@@ -448,17 +443,20 @@ class Ant(object):
         if self.row <= 5 or self.row > self.gridLen - 5 or self.col <= 5 or self.col > self.gridLen - 5:
             self.resize()
 
-    def resizeInternalVariables(self, row, col):
-
-        self.row += row
-        self.col += col
-        self.homeRow += row
-        self.homeCol += col
+    def resizeInstanceVariables(self, rowDelta, colDelta):
+        """
+        resizeInstanceVaribles adjusts the instance variables
+        so the instance variables stay consistent with the resized map
+        """
+        self.row += rowDelta
+        self.col += colDelta
+        self.homeRow += rowDelta
+        self.homeCol += colDelta
         
         ## update the lists of food, unexplored, and exhausted
-        self.foodLocSet = set(map(lambda x: (x[0] + row, x[1] + col), self.foodLocSet))
-        self.unexploredLocSet = set(map(lambda x: (x[0] + row, x[1] + col), self.unexploredLocSet))
-        self.exhaustedFoodLocSet = set(map(lambda x: (x[0] + row, x[1] + col), self.exhaustedFoodLocSet))
+        self.foodLocSet = set(map(lambda x: (x[0] + rowDelta, x[1] + colDelta), self.foodLocSet))
+        self.unexploredLocSet = set(map(lambda x: (x[0] + rowDelta, x[1] + colDelta), self.unexploredLocSet))
+        self.exhaustedFoodLocSet = set(map(lambda x: (x[0] + rowDelta, x[1] + colDelta), self.exhaustedFoodLocSet))
 
     def resize(self):
         """
@@ -471,7 +469,7 @@ class Ant(object):
         self.internalMap.resize(10,10,-100)
 
         ## update the ant's position in the internal map
-        self.resizeInternalVariables(10,10)
+        self.resizeInstanceVariables(10,10)
 
             
     def shortest_path_search(self, startPos, fSuccessors, fIsGoal, goalObjective):
@@ -512,7 +510,6 @@ class Ant(object):
         frontier.put([1, [startPos]])
 
         while(frontier):
-            ## use sort the determine which path to expand
             ## path with lowest cost gValue is expanded first
             path = frontier.get()
             ## calculate the number of steps in the path to this point len(path[1])/2.
@@ -622,13 +619,9 @@ class Ant(object):
         ## if there are other ants on the current tile, receive data from the other ants
         if len(currTile.getAnts()) > 0:
             for ant in currTile.getAnts():
-                if ant != self and self.nReceives%5 == 0: 
+                ## ants only communicate with other ants every 5th turn to reduce computational expense
+                if ant != self and self.nReceives%2 == 0: 
                     self.receive(ant.send())
-
-        ##############
-        #####TEMP#####
-        ##############                                                       
-        ##self.setAntReceiveMap(True)
 
         ## sense the Surroundings
         self.sense(Surroundings)
@@ -663,7 +656,7 @@ class Ant(object):
             self.routePlanType = "HOME" 
             ## If there is only one unit of food delete the location as a food location
             if currTile.getAmountOfFood() == 1:
-                self.foodLocSet.remove((self.row,self.col))                     ###NTD
+                self.foodLocSet.remove((self.row,self.col))                     
                 self.exhaustedFoodLocSet.add((self.row, self.col))
                 ## there's no longer food at the location so we no longer need the path
                 if self.memo.has_key(((self.homeRow,self.homeCol), "FOOD")): 
@@ -684,7 +677,6 @@ class Ant(object):
             ## return the next action in the route plan
             action = self.routePlan.pop(0)
             self.updateMapPos(action)
-            self.setNewFoodFound(False)
             if self.getPrintActions():
                 print action 
             return action
@@ -709,6 +701,7 @@ class Ant(object):
         else:
             if self.getPrintActions():
                 print "HALT"
+            self.finalCheckMap(); 
             return "HALT"
             
     def receive(self, externalData):
@@ -766,7 +759,7 @@ class Ant(object):
             ## overwite internal map with external map
             self.internalMap = extMap
             self.gridLen = N
-            self.resizeInternalVariables(halfDif, halfDif)
+            self.resizeInstanceVariables(halfDif, halfDif)
             self.sychronizeData(extUnexploredLocSet, extFoodLocSet, extExhaustedFoodLocSet)
             
         ## Size of internal map > size of external map
@@ -812,7 +805,7 @@ class Ant(object):
         self.unexploredLocSet = set(filter(lambda x: self.internalMap.getAt(x[0], x[1]) == -100,self.unexploredLocSet))
         ## filter out food locations that are known to be exhausted
         self.foodLocSet = set(filter(lambda x: x not in self.exhaustedFoodLocSet, self.foodLocSet))
-        ## delete the routePlan if the new data shows food has been exhausted
+        ## delete the current routePlan if the new data shows food has been exhausted at the current route plan destination
         if self.foodLoc[1] in extExhaustedFoodLocSet and self.routePlanType == "FOOD":
             self.routePlan = [] 
 
@@ -869,6 +862,15 @@ class Ant(object):
                list(self.foodLocSet) + \
                list(self.exhaustedFoodLocSet) + \
                [self.internalMap.getAt(row,col) for row in xrange(self.gridLen) for col in xrange(self.gridLen)]
+
+    def addUnexploredLocs(self, row, col):
+        for move in self.dirs.values():
+            newRow = row + move[0]
+            newCol = col + move[1]
+            if self.internalMap.getAt(newRow, newCol) == -100:
+                self.unexploredLocSet.add((newRow, newCol))
+            
+            
        
     def sense(self, Surroundings):
         """
@@ -910,12 +912,9 @@ class Ant(object):
         for move1 in self.dirs.values():
             newRow1 = self.row + move1[0]
             newCol1 = self.col + move1[1]
-            for move2 in self.dirs.values():
-                adjToNewRow = newRow1 + move2[0]
-                adjToNewCol = newCol1 + move2[1]
-                if self.internalMap.getAt(adjToNewRow, adjToNewCol) == -100:
-                    self.unexploredLocSet.add((adjToNewRow, adjToNewCol))
+            if self.internalMap.getAt(newRow1, newCol1) == -101:
+                self.addUnexploredLocs(newRow1, newCol1)
 
         ## after the ant finishes sensing, update whether food is known
-        self.checkMap()        
- 
+        self.checkMap()
+       
