@@ -8,7 +8,7 @@ The solution uses A* for route planning.
 
 If there are no known food locations, then A* plots a route to the closest unexplored tile. 
 
-If there is a known food location (which can be discovered either through sensing tiles or via another ant transmiting data), if the ant doesn't already have a path to the food, then A* is used to plan the shortest path. 
+If there is a known food location (which can be discovered either through sensing tiles or via another ant transmiting data) and the ant doesn't have a path to food, then A* is used to plan the shortest path to food. 
 
 Memoization is used to save paths to food and paths to the home tile. Food locations are kept until the food is exhausted, at which point the path is deleted. 
 
@@ -18,6 +18,6 @@ One note, it is possible to get sub-optimal paths. The A* algorithm can only con
 
 Memoization isn't used for unexplored tiles because the unexplored frontier is constantly changing. 
 
-The ants can operate in a world of any size. It wasn't clear from the challenge specification if the world would always be a fixed size. Therefore, I implemented the program so the ant's internal map can resize as required. 
+The ants can operate in a world of any size. It wasn't clear from the challenge specification if the world would always be a fixed size. Therefore, the program is implemented such that the ant's internal map can resize as required. 
 
-Finally, because my Java wasn't strong at the time, I implemented the challenge in Python which required writing both the AI for the ant and the testing framework that interacts with the ant API. I stayed consistent with the API specified by the challenge except except that I allow the simulation to directly access the ant objects for dropoff() and gather(). 
+Finally, because I was relatively weaker in Java at the time, I implemented the challenge in Python. This required writing both the AI for the ant and the testing framework that interacts with the ant API. I stayed consistent with the API specified by the challenge except except that I allow the simulation to directly access the ant objects for dropoff() and gather(). 
